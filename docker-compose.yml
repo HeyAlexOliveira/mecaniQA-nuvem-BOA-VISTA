@@ -1,0 +1,67 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mecaniqa-api
+    ports:
+      - "8080:8080"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: mecaniqa
+      MYSQL_USER: mecaniqa
+      MYSQL_PASSWORD: mecaniqa123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mecaniqa-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: mecaniqa-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: mecaniqa
+      MYSQL_USER: mecaniqa
+      MYSQL_PASSWORD: mecaniqa123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - mecaniqa-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mecaniqa-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mecaniqa-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  mecaniqa-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
