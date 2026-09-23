@@ -1,0 +1,9 @@
+# copie para terraform.tfvars antes do apply
+project_name        = "mecaniqa-boa-vista"
+mysql_root_password = "root123"
+mysql_database      = "mecaniqa"
+mysql_user          = "mecaniqa"
+mysql_password      = "mecaniqa123"
+api_port            = 8080
+mysql_port          = 3306
+redis_port          = 6379
