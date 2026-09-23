@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: mecaniqa-mysql
+  namespace: mecaniqa
 
 spec:
   replicas: 1
@@ -20,10 +21,49 @@ spec:
       containers:
         - name: mecaniqa-mysql
           image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+
           ports:
             - containerPort: 3306
+
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: root
+              valueFrom:
+                secretKeyRef:
+                  name: mecaniqa-secret
+                  key: MYSQL_ROOT_PASSWORD
+
             - name: MYSQL_DATABASE
-              value: mecaniqa
+              valueFrom:
+                configMapKeyRef:
+                  name: mecaniqa-config
+                  key: MYSQL_DATABASE
+
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mecaniqa-secret
+                  key: MYSQL_USER
+
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mecaniqa-secret
+                  key: MYSQL_PASSWORD
+
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+
+            - name: mysql-init
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+
+        - name: mysql-init
+          configMap:
+            name: mysql-init

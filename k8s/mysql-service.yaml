@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: mysql-service
+  namespace: mecaniqa
 
 spec:
   type: ClusterIP
