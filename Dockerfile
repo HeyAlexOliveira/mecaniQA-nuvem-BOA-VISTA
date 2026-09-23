@@ -1,5 +1,7 @@
 FROM eclipse-temurin:17-jdk-alpine
 
+LABEL maintainer="MecaniQA Tech - Equipe BOA VISTA"
+
 WORKDIR /app
 
 COPY Main.java .

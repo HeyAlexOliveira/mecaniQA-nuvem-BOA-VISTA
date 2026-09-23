@@ -1,0 +1,9 @@
+.git
+.gitignore
+README.md
+*.pdf
+docker-compose.yml
+k8s/
+mysql/
+redis/
+terraform/

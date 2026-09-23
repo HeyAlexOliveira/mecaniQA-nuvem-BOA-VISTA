@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: mecaniqa-boa-vista-java:latest
     container_name: mecaniqa-api
     ports:
       - "8080:8080"
@@ -22,9 +23,13 @@ services:
         condition: service_healthy
     networks:
       - mecaniqa-network
+    restart: unless-stopped
 
   mysql:
-    image: mysql:8.0
+    build:
+      context: ./mysql
+      dockerfile: Dockerfile
+    image: mecaniqa-boa-vista-mysql:latest
     container_name: mecaniqa-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root123
@@ -42,9 +47,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
+    image: mecaniqa-boa-vista-redis:latest
     container_name: mecaniqa-redis
     ports:
       - "6379:6379"
@@ -57,6 +66,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 networks:
   mecaniqa-network:
