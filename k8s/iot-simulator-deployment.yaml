@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-simulator
+  namespace: mecaniqa
+  labels:
+    app: iot-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iot-simulator
+  template:
+    metadata:
+      labels:
+        app: iot-simulator
+    spec:
+      containers:
+        - name: iot-simulator
+          image: mecaniqa-boa-vista-iot-simulator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: metrics
+          env:
+            - name: BASE_RATE
+              value: "5"
+            - name: PEAK_MULTIPLIER
+              value: "10"
+            - name: FORCE_PEAK
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-simulator-service
+  namespace: mecaniqa
+  labels:
+    app: iot-simulator
+spec:
+  type: ClusterIP
+  selector:
+    app: iot-simulator
+  ports:
+    - name: metrics
+      port: 8000
+      targetPort: 8000
