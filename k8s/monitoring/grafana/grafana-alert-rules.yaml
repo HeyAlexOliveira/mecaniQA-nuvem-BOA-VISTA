@@ -1,0 +1,204 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alert-rules
+  namespace: monitoring
+data:
+  alert-rules.yaml: |
+    apiVersion: 1
+    groups:
+    - orgId: 1
+      name: mecaniqa-alertas
+      folder: MecaniQA
+      interval: 1m
+      rules:
+      - uid: mecaniqa-cpu-alta
+        title: MecaniQA - CPU Alta
+        condition: C
+        for: 2m
+        noDataState: NoData
+        execErrState: Error
+        data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            refId: A
+            expr: rate(process_cpu_seconds_total{job="iot-simulator"}[1m]) * 100
+            instant: true
+            intervalMs: 1000
+            maxDataPoints: 43200
+        - refId: B
+          datasourceUid: __expr__
+          model:
+            refId: B
+            type: reduce
+            expression: A
+            reducer: last
+            datasource:
+              type: __expr__
+              uid: __expr__
+        - refId: C
+          datasourceUid: __expr__
+          model:
+            refId: C
+            type: threshold
+            expression: B
+            conditions:
+            - evaluator:
+                type: gt
+                params:
+                - 80
+            datasource:
+              type: __expr__
+              uid: __expr__
+        labels:
+          tipo: infraestrutura
+        annotations:
+          summary: CPU acima de 80% por 2 min
+          runbook: documentacao/runbooks/runbook-cpu-alta.md
+      - uid: mecaniqa-memoria-alta
+        title: MecaniQA - Memória Alta
+        condition: C
+        for: 2m
+        noDataState: NoData
+        execErrState: Error
+        data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            refId: A
+            expr: process_resident_memory_bytes{job="iot-simulator"}
+            instant: true
+            intervalMs: 1000
+            maxDataPoints: 43200
+        - refId: B
+          datasourceUid: __expr__
+          model:
+            refId: B
+            type: reduce
+            expression: A
+            reducer: last
+            datasource:
+              type: __expr__
+              uid: __expr__
+        - refId: C
+          datasourceUid: __expr__
+          model:
+            refId: C
+            type: threshold
+            expression: B
+            conditions:
+            - evaluator:
+                type: gt
+                params:
+                - 107374182
+            datasource:
+              type: __expr__
+              uid: __expr__
+        labels:
+          tipo: infraestrutura
+        annotations:
+          summary: Memória acima de 80% do limite (128Mi) por 2 min
+          runbook: documentacao/runbooks/runbook-memoria-alta.md
+      - uid: mecaniqa-taxa-erros-alta
+        title: MecaniQA - Taxa de Erros Alta
+        condition: C
+        for: 2m
+        noDataState: NoData
+        execErrState: Error
+        data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            refId: A
+            expr: 100 * sum(rate(mecaniqa_sensor_errors_total{job="iot-simulator"}[1m]))
+              / clamp_min(sum(rate(mecaniqa_sensor_readings_total{job="iot-simulator"}[1m])),
+              0.000001)
+            instant: true
+            intervalMs: 1000
+            maxDataPoints: 43200
+        - refId: B
+          datasourceUid: __expr__
+          model:
+            refId: B
+            type: reduce
+            expression: A
+            reducer: last
+            datasource:
+              type: __expr__
+              uid: __expr__
+        - refId: C
+          datasourceUid: __expr__
+          model:
+            refId: C
+            type: threshold
+            expression: B
+            conditions:
+            - evaluator:
+                type: gt
+                params:
+                - 5
+            datasource:
+              type: __expr__
+              uid: __expr__
+        labels:
+          tipo: aplicacao
+        annotations:
+          summary: Taxa de erros acima de 5% por 2 min
+          runbook: documentacao/runbooks/runbook-taxa-erros-alta.md
+      - uid: mecaniqa-leituras-baixas
+        title: MecaniQA - Leituras Baixas
+        condition: C
+        for: 2m
+        noDataState: NoData
+        execErrState: Error
+        data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            refId: A
+            expr: sum(rate(mecaniqa_sensor_readings_total{job="iot-simulator"}[1m]))
+            instant: true
+            intervalMs: 1000
+            maxDataPoints: 43200
+        - refId: B
+          datasourceUid: __expr__
+          model:
+            refId: B
+            type: reduce
+            expression: A
+            reducer: last
+            datasource:
+              type: __expr__
+              uid: __expr__
+        - refId: C
+          datasourceUid: __expr__
+          model:
+            refId: C
+            type: threshold
+            expression: B
+            conditions:
+            - evaluator:
+                type: lt
+                params:
+                - 0.2
+            datasource:
+              type: __expr__
+              uid: __expr__
+        labels:
+          tipo: aplicacao
+        annotations:
+          summary: Leituras abaixo de 0,2/s por 2 min
+          runbook: documentacao/runbooks/runbook-leituras-baixas.md

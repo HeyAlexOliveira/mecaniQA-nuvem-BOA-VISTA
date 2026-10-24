@@ -36,7 +36,24 @@ spec:
           volumeMounts:
             - name: grafana-datasource
               mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: grafana-alert-rules
+              mountPath: /etc/grafana/provisioning/alerting
       volumes:
         - name: grafana-datasource
           configMap:
             name: grafana-datasource
+        - name: grafana-dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+        # opcional: se o ConfigMap nao for aplicado, o Grafana sobe normalmente
+        - name: grafana-alert-rules
+          configMap:
+            name: grafana-alert-rules
+            optional: true
