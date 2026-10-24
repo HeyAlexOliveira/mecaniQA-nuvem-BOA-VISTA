@@ -1,6 +1,6 @@
 # mecaniQA-nuvem-boa-vista
 
-Projeto da **MecâniQA Tech** — OAT 1 (Cloud/DevOps): migração de uma infraestrutura local instável para uma fundação resiliente e conteinerizada.
+Projeto da **MecâniQA Tech** — OAT 1 (Cloud/DevOps: Docker, Compose, Terraform e Kubernetes) e OAT 2 (Monitorando a Continuidade: observabilidade, autoscaling e continuidade de negócios).
 
 ## Contexto
 
@@ -170,3 +170,117 @@ k9s -n mecaniqa
 
 - **Docker Compose**: rede bridge dedicada `mecaniqa-network`, com resolução DNS interna pelos nomes dos serviços (`mysql`, `redis`, `api`).
 - **Kubernetes**: comunicação entre Pods via `Service` (`mysql-service`, `redis-service`), com nomes resolvidos pelo DNS interno do cluster e injetados na API via `ConfigMap`.
+
+---
+
+# OAT 2 — Monitorando a Continuidade
+
+## Contexto
+
+Oficinas enviam milhares de leituras de sensores IoT em horários de pico (08h e 17h) e o cluster operava como uma "caixa preta". Clientes Enterprise exigem **99,9%** de disponibilidade. Nesta etapa a equipe instrumentou o simulador de sensores (Python), subiu **Prometheus** e **Grafana** no Kubernetes, criou **4 dashboards** e **4 alarmes**, configurou o **HPA** e documentou **runbooks** e as métricas de continuidade.
+
+## Estrutura adicionada na OAT 2
+
+```
+.
+├── mecaniQA_oat2_boa-vista.pdf          # apresentação
+├── iot-simulator/                       # simulador Python instrumentado (prometheus_client)
+├── k8s/
+│   ├── iot-simulator-deployment.yaml    # Deployment + Service (metrics :8000)
+│   └── monitoring/
+│       ├── namespace.yaml
+│       ├── prometheus-*.yaml            # ConfigMap, Deployment, Service (NodePort 30090)
+│       ├── hpa/iot-simulator-hpa.yaml   # HPA autoscaling/v2 (1-5 Pods, CPU 60%, memória 70%)
+│       └── grafana/
+│           ├── grafana-datasource.yaml            # datasource Prometheus (uid: prometheus)
+│           ├── grafana-dashboards-provider.yaml   # provisionamento de dashboards
+│           ├── grafana-dashboards-configmap.yaml  # 4 dashboards (CPU, Memória, Erros, Sucessos)
+│           ├── grafana-alert-rules.yaml           # 4 alarmes provisionados como código
+│           ├── grafana-deployment.yaml / grafana-service.yaml
+│           └── dashboards/*.json                  # JSON originais exportados
+├── documentacao/
+│   ├── metricas-continuidade.md         # SLA, SLO, SLI, RTO e RPO
+│   └── runbooks/                        # um runbook por alarme (4)
+└── evidencias/                          # prints e logs do teste de estresse
+```
+
+## Métricas customizadas do simulador
+
+| Métrica | Tipo | Descrição |
+| --- | --- | --- |
+| `mecaniqa_sensor_readings_total` | Counter | Leituras processadas com sucesso |
+| `mecaniqa_sensor_errors_total` | Counter | Falhas de leitura |
+| `mecaniqa_reading_processing_seconds` | Histogram | Tempo de processamento por leitura |
+| `mecaniqa_peak_window_active` | Gauge | 1 durante a janela de pico |
+| `mecaniqa_simulated_rate_per_second` | Gauge | Taxa simulada atual |
+
+## Como rodar — Monitoramento (Kubernetes)
+
+Pré-requisitos: cluster local com Kubernetes (Docker Desktop, Minikube ou Kind), `kubectl` e **metrics-server** ativo (necessário para o HPA e para `kubectl top`).
+
+```bash
+# 1) imagem do simulador (Minikube: minikube image load ... | Kind: kind load docker-image ...)
+docker build -t mecaniqa-boa-vista-iot-simulator:latest ./iot-simulator
+
+# 2) aplicacao
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/iot-simulator-deployment.yaml
+
+# 3) Prometheus
+kubectl apply -f k8s/monitoring/namespace.yaml
+kubectl apply -f k8s/monitoring/prometheus-configmap.yaml
+kubectl apply -f k8s/monitoring/prometheus-deployment.yaml -f k8s/monitoring/prometheus-service.yaml
+
+# 4) Grafana (datasource, dashboards e alarmes provisionados)
+kubectl apply -f k8s/monitoring/grafana/grafana-datasource.yaml
+kubectl apply -f k8s/monitoring/grafana/grafana-dashboards-provider.yaml
+kubectl apply -f k8s/monitoring/grafana/grafana-dashboards-configmap.yaml
+kubectl apply -f k8s/monitoring/grafana/grafana-alert-rules.yaml
+kubectl apply -f k8s/monitoring/grafana/grafana-deployment.yaml -f k8s/monitoring/grafana/grafana-service.yaml
+
+# 5) HPA
+kubectl apply -f k8s/monitoring/hpa/iot-simulator-hpa.yaml
+```
+
+Acesso:
+
+```bash
+kubectl port-forward -n monitoring service/prometheus-service 9090:9090   # http://localhost:9090
+kubectl port-forward -n monitoring service/grafana-service 3000:3000      # http://localhost:3000 (admin / admin)
+```
+
+> O `grafana-alert-rules.yaml` é opcional para o Grafana subir: se ele não for aplicado, o Grafana inicia normalmente e as regras podem ser criadas pela interface. Sem volume persistente, dados criados só pela interface se perdem ao reiniciar o Pod; por isso dashboards e alarmes ficam versionados neste repositório.
+
+## Dashboards (4)
+
+CPU (`rate(process_cpu_seconds_total[1m]) * 100`), Memória (`process_resident_memory_bytes`), Erros (taxa de erros em %) e Sucessos (leituras por segundo).
+
+## Alarmes (4)
+
+| Alarme | Tipo | Condição | Runbook |
+| --- | --- | --- | --- |
+| CPU Alta | Infraestrutura | > 80% por 2 min | `documentacao/runbooks/runbook-cpu-alta.md` |
+| Memória Alta | Infraestrutura | > 80% do limite (107374182 bytes) por 2 min | `documentacao/runbooks/runbook-memoria-alta.md` |
+| Taxa de Erros Alta | Aplicação | > 5% por 2 min | `documentacao/runbooks/runbook-taxa-erros-alta.md` |
+| Leituras Baixas | Aplicação | < 0,2 leitura/s por 2 min | `documentacao/runbooks/runbook-leituras-baixas.md` |
+
+## HPA e teste de estresse
+
+HPA `autoscaling/v2` no Deployment `iot-simulator`: mínimo 1 Pod, máximo 5, alvo de CPU 60% e de memória 70%.
+
+Para gerar carga, ative o modo pico do simulador (taxa base x multiplicador) e acompanhe o HPA:
+
+```bash
+kubectl set env deployment/iot-simulator FORCE_PEAK=true -n mecaniqa
+kubectl get hpa -n mecaniqa -w
+kubectl get pods -n mecaniqa -w
+
+# encerrar o teste
+kubectl set env deployment/iot-simulator FORCE_PEAK=false -n mecaniqa
+```
+
+Resultado observado: CPU chegou a 114% do alvo, o HPA escalou para 5 réplicas, o alarme de Taxa de Erros passou de Pending para Alerting e, ao normalizar a carga, o HPA voltou a 1 réplica. Prints e logs em `evidencias/`.
+
+## Continuidade de negócios
+
+SLA, SLO, SLI, RTO e RPO estão definidos em `documentacao/metricas-continuidade.md` (meta de 99,9%: 8 h 45 min 36 s de indisponibilidade por ano, 43 min 12 s por mês).
